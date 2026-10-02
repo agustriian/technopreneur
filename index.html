@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ff7a00">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#ff7a00">
-  <title>NotaKilat Pro</title>
+  <title>Notadigital Pro</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,7 +17,7 @@
     <button class="mobile-menu" onclick="toggleSidebar()">☰</button>
     <div class="brand-mark">NK</div>
     <div>
-      <div class="brand-name">Nota<span>Kilat</span></div>
+      <div class="brand-name">Nota<span>digital</span></div>
       <small>Pro</small>
     </div>
   </div>
@@ -165,7 +165,7 @@
             </div>
           </div>
           <div id="voiceProductStatus" class="voice-status" hidden></div>
-          <div class="voice-help">Contoh: <b>“kopi 2, gula 2, beras 2”</b> — NotaKilat akan mencari produk yang sudah terdaftar dan memasukkan jumlahnya otomatis.</div>
+          <div class="voice-help">Contoh: <b>“kopi 2, gula 2, beras 2”</b> — Notadigital akan mencari produk yang sudah terdaftar dan memasukkan jumlahnya otomatis.</div>
 
           <div class="table-scroll">
             <table class="items-table">
@@ -285,12 +285,12 @@
     <!-- DATABASE -->
     <section id="page-database" class="page">
       <div class="page-head">
-        <div><h1>Data & Database</h1><p>Kelola data, backup, dan pemindahan database NotaKilat secara offline.</p></div>
+        <div><h1>Data & Database</h1><p>Kelola data, backup, dan pemindahan database Notadigital secara offline.</p></div>
       </div>
 
       <div class="database-status" id="databaseStatusCard">
         <div class="db-status-icon">💾</div>
-        <div class="db-status-text"><strong id="databaseStatusTitle">🟢 Database lokal aktif</strong><span id="databaseStatusText">Data NotaKilat tersimpan di perangkat ini. Tidak dikirim ke server.</span></div>
+        <div class="db-status-text"><strong id="databaseStatusTitle">🟢 Database lokal aktif</strong><span id="databaseStatusText">Data Notadigital tersimpan di perangkat ini. Tidak dikirim ke server.</span></div>
         <span class="db-pending" id="databasePending">Offline-first</span>
       </div>
 
@@ -298,13 +298,13 @@
         <button class="db-card" onclick="syncNow()"><div class="db-card-icon sync">🔄</div><div><strong>Refresh Database</strong><p>Muat ulang data lokal yang tersimpan di perangkat ini.</p></div></button>
         <button class="db-card" onclick="exportCsv()"><div class="db-card-icon csv">📥</div><div><strong>Export CSV</strong><p>Download data dalam format tabel yang mudah dibuka di Excel atau Google Sheets.</p></div></button>
         <button class="db-card" onclick="document.getElementById('importCsvInput').click()"><div class="db-card-icon import">📤</div><div><strong>Import CSV</strong><p>Masukkan kembali data tabel dari file CSV.</p></div></button>
-        <button class="db-card" onclick="exportBackupJson()"><div class="db-card-icon backup">💾</div><div><strong>Backup Lengkap</strong><p>Simpan seluruh database NotaKilat ke satu file untuk cadangan atau pindah perangkat.</p></div></button>
-        <button class="db-card" onclick="document.getElementById('importJsonInput').click()"><div class="db-card-icon restore">♻️</div><div><strong>Restore Backup</strong><p>Kembalikan seluruh data NotaKilat dari file backup.</p></div></button>
+        <button class="db-card" onclick="exportBackupJson()"><div class="db-card-icon backup">💾</div><div><strong>Backup Lengkap</strong><p>Simpan seluruh database Notadigital ke satu file untuk cadangan atau pindah perangkat.</p></div></button>
+        <button class="db-card" onclick="document.getElementById('importJsonInput').click()"><div class="db-card-icon restore">♻️</div><div><strong>Restore Backup</strong><p>Kembalikan seluruh data Notadigital dari file backup.</p></div></button>
         <button class="db-card danger-card" onclick="resetAllData()"><div class="db-card-icon danger">🗑️</div><div><strong>Reset Semua Data</strong><p>Hapus seluruh database lokal di perangkat ini. Gunakan dengan hati-hati.</p></div></button>
       </div>
 
       <div class="panel db-info">
-        <div class="panel-head"><div><h2>Catatan Database</h2><p>NotaKilat Offline menyimpan data langsung di perangkat.</p></div></div>
+        <div class="panel-head"><div><h2>Catatan Database</h2><p>Notadigital Offline menyimpan data langsung di perangkat.</p></div></div>
         <div class="info-list">
           <div><b>CSV</b><span>Format tabel untuk dibuka atau diolah di Excel/Google Sheets.</span></div>
           <div><b>Backup</b><span>File backup internal menyimpan struktur database lengkap, termasuk item-item nota. Tidak perlu dibuka manual.</span></div>
@@ -328,10 +328,10 @@
           <div class="field"><label>Tampilan Aplikasi</label><select id="storeTheme" onchange="applyTheme(this.value)"><option value="modern">✨ Modern</option><option value="dotmatrix">⠿ Dot Matrix</option></select></div>
           <div class="field"><label>Format Nota Default</label><select id="invoiceStyleDefault"><option value="modern">✨ Modern</option><option value="thermal">🧾 Thermal / Dot Matrix (Nota Panjang)</option></select></div>
           <div class="field"><label>Logo Toko</label><input id="storeLogo" type="file" accept="image/*"></div>
-          <div class="field"><label>Keamanan</label><div class="inline-setting"><input type="checkbox" id="pinEnabled"><span>Aktifkan PIN saat membuka NotaKilat</span></div></div>
+          <div class="field"><label>Keamanan</label><div class="inline-setting"><input type="checkbox" id="pinEnabled"><span>Aktifkan PIN saat membuka Notadigital</span></div></div>
         </div>
         <div class="logo-preview"><img id="logoPreview" alt="Logo"></div>
-        <small class="muted">Logo boleh besar. NotaKilat akan mengoptimalkan ukuran otomatis untuk penyimpanan offline.</small>
+        <small class="muted">Logo boleh besar. Notadigital akan mengoptimalkan ukuran otomatis untuk penyimpanan offline.</small>
         <div class="form-actions"><button class="btn primary" onclick="saveProfile()">💾 Simpan Profil</button><button class="btn light" onclick="lockApp()">🔒 Kunci Sekarang</button></div>
       </div>
     </section>
@@ -411,7 +411,7 @@
 </div>
 
 <div id="pinGate" class="pin-gate" hidden>
-  <div class="pin-card"><div class="pin-logo">🔐</div><h2>NotaKilat Terkunci</h2><p>Masukkan PIN toko untuk melanjutkan.</p><div class="pin-input-wrap" style="position:relative;width:100%;margin:0 0 12px;display:flex;align-items:center;">
+  <div class="pin-card"><div class="pin-logo">🔐</div><h2>Notadigital Terkunci</h2><p>Masukkan PIN toko untuk melanjutkan.</p><div class="pin-input-wrap" style="position:relative;width:100%;margin:0 0 12px;display:flex;align-items:center;">
 <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" aria-label="PIN toko" style="width:100%;padding-right:52px;box-sizing:border-box;">
 <button id="togglePinBtn" type="button" onclick="togglePinVisibility()" aria-label="Tampilkan PIN" title="Tampilkan PIN" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;background:transparent;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;">👁️</button>
 </div><button class="btn primary" onclick="unlockApp()">Masuk</button><div id="pinError" class="pin-error"></div></div>
