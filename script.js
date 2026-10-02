@@ -4,7 +4,7 @@
 ========================================================= */
 
 const CACHE_KEY = "notakilat_offline_db_v5";
-const STORE_PIN = "adm1n123";
+const STORE_PIN = "admin123";
 
 const defaultDB = {
   profile: {
