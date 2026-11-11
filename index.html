@@ -330,6 +330,17 @@
           <div class="field"><label>Logo Toko</label><input id="storeLogo" type="file" accept="image/*"></div>
           <div class="field"><label>Keamanan</label><div class="inline-setting"><input type="checkbox" id="pinEnabled"><span>Aktifkan PIN saat membuka Notadigital</span></div></div>
         </div>
+        <div class="wa-template-box">
+          <h3>💬 Template Pesan WhatsApp ke Pelanggan</h3>
+          <p class="muted">Tulis kalimat sesuai gaya tokomu. Kode dalam kurung kurawal seperti <b>{no_nota}</b> dan <b>{total}</b> otomatis diganti data nota. Klik kode di bawah untuk menyisipkannya ke kotak yang sedang aktif.</p>
+          <div id="waPlaceholderChips" class="wa-chips"></div>
+          <div class="form-grid two">
+            <div class="field"><label>Pesan untuk nota BELUM LUNAS (tagihan)</label><textarea id="waTemplateUnpaid" rows="11"></textarea><button type="button" class="btn light wa-reset" onclick="resetWaTemplate('unpaid')">↺ Kembalikan contoh</button></div>
+            <div class="field"><label>Pesan untuk nota LUNAS</label><textarea id="waTemplatePaid" rows="11"></textarea><button type="button" class="btn light wa-reset" onclick="resetWaTemplate('paid')">↺ Kembalikan contoh</button></div>
+          </div>
+          <div class="field"><label id="waPreviewLabel">Contoh hasil</label><div id="waTemplatePreview" class="wa-preview"></div></div>
+          <small class="muted">Baris yang datanya kosong (mis. Catatan tidak diisi) otomatis tidak ikut terkirim. Jangan lupa klik <b>Simpan Profil</b>.</small>
+        </div>
         <div class="logo-preview"><img id="logoPreview" alt="Logo"></div>
         <small class="muted">Logo boleh besar. Notadigital akan mengoptimalkan ukuran otomatis untuk penyimpanan offline.</small>
         <div class="form-actions"><button class="btn primary" onclick="saveProfile()">💾 Simpan Profil</button><button class="btn light" onclick="lockApp()">🔒 Kunci Sekarang</button></div>

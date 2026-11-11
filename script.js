@@ -9,7 +9,7 @@ const STORE_PIN = "admin123";
 const defaultDB = {
   profile: {
     name: "Toko Saya", phone: "", address: "", footer: "Terima kasih sudah berbelanja.",
-    bankName: "", bankAccount: "", bankHolder: "", logo: "", theme: "modern", invoiceStyle: "modern", pinEnabled: true
+    bankName: "", bankAccount: "", bankHolder: "", logo: "", theme: "modern", invoiceStyle: "modern", pinEnabled: true, waTemplateUnpaid: "", waTemplatePaid: ""
   },
   products: [], customers: [], suppliers: [], invoices: [], purchases: []
 };
@@ -806,19 +806,115 @@ function previewSavedInvoice(id){
   openModal("previewModal");
 }
 
+/* ===== Template pesan WhatsApp (bisa diatur di Profil Toko) ===== */
+const WA_TEMPLATE_DEFAULT_UNPAID=`Halo kak {nama} 🙏
+
+Berikut adalah nota pesanan kamu {no_nota} dengan total {total}
+
+Untuk pembayaran bisa melalui
+Trf Bank {bank}
+{no_rek} a/n {atas_nama}
+
+Noted : Konfirmasi dan kirim bukti Trfnya ya
+
+Terima kasih sudah order di
+{toko} 🙏`;
+const WA_TEMPLATE_DEFAULT_PAID=`Halo kak {nama} 🙏
+
+Berikut nota pesanan kamu {no_nota}
+Tanggal: {tanggal}
+Total: *{total}*
+Status: {status}
+
+Terima kasih sudah berbelanja di
+{toko} 🙏`;
+const WA_PLACEHOLDERS=[
+  ["{nama}","Nama pelanggan"],["{no_nota}","Nomor nota"],["{tanggal}","Tanggal nota"],["{jatuh_tempo}","Jatuh tempo"],
+  ["{total}","Total bayar"],["{subtotal}","Subtotal"],["{diskon}","Diskon"],["{status}","LUNAS / BELUM LUNAS"],
+  ["{metode}","Metode bayar"],["{daftar_item}","Daftar produk"],["{catatan}","Catatan nota"],["{toko}","Nama toko"],
+  ["{no_toko}","No. WA toko"],["{bank}","Nama bank"],["{no_rek}","No. rekening"],["{atas_nama}","Atas nama rekening"]
+];
+
+function waTemplateValues(inv){
+  const p=db.profile||{};
+  const items=(inv.items||[]).map(i=>`- ${i.name} (${i.qty} x ${money(i.price)}) = ${money(i.total)}`).join("\n");
+  return {
+    nama:inv.customerName||"Kak", no_nota:inv.number||"", tanggal:formatDate(inv.date),
+    jatuh_tempo:inv.dueDate?formatDate(inv.dueDate):"", total:money(inv.total), subtotal:money(inv.subtotal),
+    diskon:money(inv.discount), status:inv.status||"", metode:inv.paymentMethod||"Tunai", daftar_item:items,
+    catatan:inv.note||"", toko:p.name||"Toko Saya", no_toko:p.phone||"", bank:p.bankName||"",
+    no_rek:p.bankAccount||"", atas_nama:p.bankHolder||""
+  };
+}
+
+function fillWaTemplate(template, values){
+  return String(template||"").split("\n").map(line=>{
+    let hadKey=false, allEmpty=true;
+    const out=line.replace(/\{([a-z_]+)\}/gi,(m,k)=>{
+      const key=k.toLowerCase();
+      if(!(key in values)) return m;
+      hadKey=true; const v=String(values[key]??""); if(v.trim()) allEmpty=false; return v;
+    });
+    // Baris yang isinya cuma placeholder kosong (mis. "Catatan: {catatan}" tapi catatan tidak diisi) otomatis dihapus
+    const fixedText=line.replace(/\{[a-z_]+\}/gi,"");
+    if(hadKey && allEmpty && /^[\s:\-–•*_.,()]*(a\/n)?[\s:\-–•*_.,()]*$/i.test(fixedText)) return null;
+    if(hadKey && allEmpty && /^\s*(catatan|jatuh tempo|no\.? ?rek(ening)?|bank)\s*:?\s*$/i.test(fixedText)) return null;
+    return out;
+  }).filter(l=>l!==null).join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+
+function getWaTemplate(inv){
+  const p=db.profile||{};
+  const unpaid=String(inv.status||"").toUpperCase()!=="LUNAS";
+  const t=unpaid?(p.waTemplateUnpaid||""):(p.waTemplatePaid||"");
+  return t.trim()?t:(unpaid?WA_TEMPLATE_DEFAULT_UNPAID:WA_TEMPLATE_DEFAULT_PAID);
+}
+
 function invoiceShareText(inv){
-  const p=db.profile;
-  const lines=[
-    `Halo ${inv.customerName || "Kak"},`,
-    `Berikut nota dari *${p.name || "Toko Saya"}*`,
-    `No. Nota: ${inv.number}`,
-    `Tanggal: ${formatDate(inv.date)}`,
-    `Total: *${money(inv.total)}*`,
-    `Status: ${inv.status}`
-  ];
-  if(inv.note) lines.push(`Catatan: ${inv.note}`);
-  lines.push("Terima kasih sudah berbelanja 🙏");
-  return lines.join("\n");
+  return fillWaTemplate(getWaTemplate(inv), waTemplateValues(inv));
+}
+
+let lastWaTemplateField="waTemplateUnpaid";
+function renderWaPlaceholderChips(){
+  const box=document.getElementById("waPlaceholderChips"); if(!box) return;
+  box.innerHTML=WA_PLACEHOLDERS.map(([k,l])=>`<button type="button" class="wa-chip" title="${escapeHtml(l)}" onclick="insertWaPlaceholder('${k}')">${k}<small>${escapeHtml(l)}</small></button>`).join("");
+  ["waTemplateUnpaid","waTemplatePaid"].forEach(id=>{
+    const el=document.getElementById(id); if(!el||el.dataset.bound) return;
+    el.dataset.bound="1";
+    el.addEventListener("focus",()=>{lastWaTemplateField=id;});
+    el.addEventListener("input",updateWaTemplatePreview);
+  });
+}
+function insertWaPlaceholder(key){
+  const el=document.getElementById(lastWaTemplateField); if(!el) return;
+  const s=el.selectionStart??el.value.length, e=el.selectionEnd??el.value.length;
+  el.value=el.value.slice(0,s)+key+el.value.slice(e);
+  el.focus(); el.selectionStart=el.selectionEnd=s+key.length;
+  updateWaTemplatePreview();
+}
+function resetWaTemplate(which){
+  const el=document.getElementById(which==="paid"?"waTemplatePaid":"waTemplateUnpaid"); if(!el) return;
+  el.value=which==="paid"?WA_TEMPLATE_DEFAULT_PAID:WA_TEMPLATE_DEFAULT_UNPAID;
+  updateWaTemplatePreview();
+}
+function updateWaTemplatePreview(){
+  const box=document.getElementById("waTemplatePreview"); if(!box) return;
+  const p={...db.profile,
+    name:document.getElementById("storeName")?.value||db.profile.name,
+    phone:document.getElementById("storePhone")?.value||db.profile.phone,
+    bankName:document.getElementById("bankName")?.value||"",
+    bankAccount:document.getElementById("bankAccount")?.value||"",
+    bankHolder:document.getElementById("bankHolder")?.value||""};
+  const sample=db.invoices?.[0]||{number:"NK-202611-0001",date:today(),status:"BELUM LUNAS",paymentMethod:"Transfer",customerName:"Ani",items:[{name:"Contoh Produk",qty:2,price:50000,total:100000}],subtotal:100000,discount:0,total:100000,note:""};
+  const saved=db.profile; db.profile=p;
+  try{
+    const vals=waTemplateValues(sample);
+    const tU=document.getElementById("waTemplateUnpaid")?.value.trim()||WA_TEMPLATE_DEFAULT_UNPAID;
+    const tP=document.getElementById("waTemplatePaid")?.value.trim()||WA_TEMPLATE_DEFAULT_PAID;
+    const show=lastWaTemplateField==="waTemplatePaid";
+    box.textContent=fillWaTemplate(show?tP:tU,{...vals,status:show?"LUNAS":"BELUM LUNAS"});
+    const lbl=document.getElementById("waPreviewLabel"); if(lbl) lbl.textContent=show?"Contoh hasil (LUNAS)":"Contoh hasil (BELUM LUNAS)";
+  } finally { db.profile=saved; }
 }
 
 function normalizeWaNumber(phone){
@@ -837,34 +933,60 @@ function invoiceToSvg(inv, style=currentInvoiceStyle){
   const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
   const text=(x,yy,t,size=24,weight=400,anchor="start",family="Arial")=>`<text x="${x}" y="${yy}" font-family="${family},sans-serif" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" fill="#202124">${esc(t)}</text>`;
   if(style==="thermal"){
-    const W=384,pad=24;let y=28;const lines=[`<rect width="100%" height="100%" fill="#fff"/>`];
-    if(p.logo){lines.push(`<image href="${p.logo}" x="${W/2-42}" y="${y}" width="84" height="60" preserveAspectRatio="xMidYMid meet"/>`);y+=76;}
-    lines.push(text(W/2,y,p.name||"Toko Saya",24,700,"middle","Courier New"));y+=24;
-    if(p.address){lines.push(text(W/2,y,p.address.slice(0,48),13,400,"middle","Courier New"));y+=18;}
-    if(p.phone){lines.push(text(W/2,y,p.phone,13,400,"middle","Courier New"));y+=18;}
-    y+=8;lines.push(text(W/2,y,"NOTA PENJUALAN",18,700,"middle","Courier New"));y+=23;
-    lines.push(text(W/2,y,inv.number,13,400,"middle","Courier New"));y+=18;
-    lines.push(text(W/2,y,`${formatDate(inv.date)} • ${inv.status}`,13,400,"middle","Courier New"));y+=20;
-    lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-dasharray="5 5"/>`);y+=22;
-    lines.push(text(pad,y,`Kepada: ${inv.customerName||"Umum"}`,14,700,"start","Courier New"));y+=18;
-    if(inv.customerPhone){lines.push(text(pad,y,inv.customerPhone,12,400,"start","Courier New"));y+=17;}
-    y+=8;lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-dasharray="5 5"/>`);y+=22;
-    inv.items.forEach(item=>{
-      lines.push(text(pad,y,String(item.name).slice(0,32),14,700,"start","Courier New"));y+=18;
-      const desc=String(item.description||"").slice(0,30);if(desc){lines.push(text(pad,y,desc,11,400,"start","Courier New"));y+=15;}
-      lines.push(text(pad,y,`${item.qty} x ${money(item.price)}`,12,400,"start","Courier New"));lines.push(text(W-pad,y,money(item.total),12,700,"end","Courier New"));y+=19;
-      if(item.discount){lines.push(text(pad,y,`diskon ${money(item.discount)}`,11,400,"start","Courier New"));y+=16;}
+    // Lebar & proporsi dibuat sama dengan preview thermal 80mm di aplikasi (nota memanjang)
+    const W=360,pad=22,inner=W-pad*2,F='Courier New,Courier,monospace';
+    const mono=(x,yy,t,size,weight=400,anchor="start")=>`<text x="${x}" y="${yy}" font-family="${F}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" fill="#111111">${esc(t)}</text>`;
+    const wrap=(str,size,maxW=inner)=>{
+      const max=Math.max(8,Math.floor(maxW/(size*0.6)));const out=[];
+      String(str??"").split(/\r?\n/).forEach(par=>{
+        let line="";
+        par.split(/\s+/).filter(Boolean).forEach(w=>{
+          while(w.length>max){ if(line){out.push(line);line="";} out.push(w.slice(0,max)); w=w.slice(max); }
+          if(!line) line=w; else if((line+" "+w).length<=max) line+=" "+w; else {out.push(line);line=w;}
+        });
+        out.push(line);
+      });
+      return out;
+    };
+    let y=30;const lines=[];
+    const block=(str,size,weight=400,anchor="start",lh=size+5)=>{wrap(str,size).forEach(l=>{lines.push(mono(anchor==="middle"?W/2:pad,y,l,size,weight,anchor));y+=lh;});};
+    const rule=()=>{y+=4;lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-width="1" stroke-dasharray="4 3"/>`);y+=22;};
+    const row=(l,r,size,weight=400)=>{lines.push(mono(pad,y,l,size,weight));lines.push(mono(W-pad,y,r,size,700,"end"));y+=size+7;};
+    if(p.logo){lines.push(`<image href="${p.logo}" x="${W/2-80}" y="${y-8}" width="160" height="80" preserveAspectRatio="xMidYMid meet"/>`);y+=90;}
+    block(String(p.name||"Toko Saya").toUpperCase(),20,700,"middle",24);
+    if(p.address) block(p.address,12,400,"middle",16);
+    if(p.phone) block(p.phone,12,400,"middle",16);
+    y+=16;block("NOTA PENJUALAN",15,700,"middle",22);
+    [inv.number,formatDate(inv.date),inv.status,inv.paymentMethod||"Tunai"].filter(Boolean).forEach(v=>block(v,12,400,"middle",17));
+    rule();
+    block("Kepada",12,700);block(inv.customerName||"Umum",12);
+    if(inv.customerPhone) block(inv.customerPhone,12);
+    if(inv.customerAddress) block(inv.customerAddress,12);
+    rule();
+    inv.items.forEach((item,idx)=>{
+      block(item.name,13,700,"start",17);
+      if(item.description) block(item.description,11,400,"start",15);
+      const left=`${item.qty} x ${money(item.price)}${item.discount?` • Disc ${money(item.discount)}`:""}`;
+      const leftLines=wrap(left,12,inner-120);
+      leftLines.forEach((l,i)=>{lines.push(mono(pad,y,l,12));if(i===0)lines.push(mono(W-pad,y,money(item.total),12,700,"end"));y+=17;});
+      if(idx<inv.items.length-1) y+=10;
     });
-    y+=4;lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-dasharray="5 5"/>`);y+=22;
-    lines.push(text(pad,y,"Subtotal",13,400,"start","Courier New"));lines.push(text(W-pad,y,money(inv.subtotal),13,700,"end","Courier New"));y+=19;
-    lines.push(text(pad,y,"Diskon",13,400,"start","Courier New"));lines.push(text(W-pad,y,money(inv.discount),13,700,"end","Courier New"));y+=22;
-    lines.push(text(pad,y,"TOTAL",18,700,"start","Courier New"));lines.push(text(W-pad,y,money(inv.total),18,700,"end","Courier New"));y+=25;
-    if(p.bankName||p.bankAccount){lines.push(text(pad,y,`Bayar: ${(p.bankName||"")} ${(p.bankAccount||"")}`,11,400,"start","Courier New"));y+=16;lines.push(text(pad,y,`a.n. ${p.bankHolder||""}`,11,400,"start","Courier New"));y+=18;}
-    if(inv.note){lines.push(text(pad,y,`Catatan: ${String(inv.note).slice(0,46)}`,11,400,"start","Courier New"));y+=18;}
-    y+=4;lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-dasharray="5 5"/>`);y+=20;
-    lines.push(text(W/2,y,p.footer||"Terima kasih sudah berbelanja.",11,400,"middle","Courier New"));y+=18;
-    lines.push(text(W/2,y,"* * * * * * * * *",12,400,"middle","Courier New"));y+=20;
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${y}" viewBox="0 0 ${W} ${y}">${lines.join("")}</svg>`;
+    rule();
+    row("Subtotal",money(inv.subtotal),12);
+    row("Diskon",money(inv.discount),12);
+    y+=2;lines.push(`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#222" stroke-width="1" stroke-dasharray="4 3"/>`);y+=26;
+    row("TOTAL",money(inv.total),18,700);y+=6;
+    if(p.bankName||p.bankAccount||p.bankHolder){
+      y+=8;block("Pembayaran",11,700,"start",15);
+      block(`${p.bankName||""} ${p.bankAccount||""}`.trim(),11,400,"start",15);
+      if(p.bankHolder) block(`a.n. ${p.bankHolder}`,11,400,"start",15);
+    }
+    if(inv.note){y+=8;block("Catatan",11,700,"start",15);block(inv.note,11,400,"start",15);}
+    rule();
+    block(p.footer||"Terima kasih sudah berbelanja.",11,400,"middle",15);
+    y+=8;block("• • • • • • • • • • • • • • •",12,400,"middle",18);
+    y+=10;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${y}" viewBox="0 0 ${W} ${y}"><rect width="${W}" height="${y}" fill="#ffffff"/>${lines.join("")}</svg>`;
   }
   const W=900,pad=48;let y=55;const lines=[`<rect width="100%" height="100%" fill="#ffffff"/>`];
   if(p.logo)lines.push(`<image href="${p.logo}" x="${pad}" y="${y-25}" width="100" height="100" preserveAspectRatio="xMidYMid meet"/>`);
@@ -893,9 +1015,13 @@ async function invoiceToFile(inv){
   const url=URL.createObjectURL(blob);
   try{
     const img=await new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=url;});
-    const scale=Math.min(2,window.devicePixelRatio||1);
+    // Pakai lebar & tinggi SVG yang sebenarnya (dulu dipaksa 900px sehingga nota thermal jadi melebar)
+    const vb=(svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)||[]);
+    const baseW=Number(vb[1])||img.naturalWidth||img.width||900;
+    const baseH=Number(vb[2])||img.naturalHeight||img.height||1200;
+    const scale=Math.max(1,Math.min(3,14000/baseH));
     const canvas=document.createElement("canvas");
-    canvas.width=900*scale; canvas.height=img.height*scale;
+    canvas.width=Math.round(baseW*scale); canvas.height=Math.round(baseH*scale);
     const ctx=canvas.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(img,0,0,canvas.width,canvas.height);
     const png=await new Promise(resolve=>canvas.toBlob(resolve,"image/png",1));
     return new File([png],`Nota-${inv.number||"Nota"}.png`,{type:"image/png"});
@@ -959,7 +1085,7 @@ function printInvoice(){
 
 /* ================= BACKUP / EXPORT ================= */
 
-const CSV_COLUMNS=["type","id","name","phone","address","price","stock","supplier","hpp","qty","cost","purchaseDate","purchaseNote","createdAt","updatedAt","number","date","dueDate","status","customerName","customerPhone","customerAddress","note","subtotal","discount","total","invoiceItems","storeName","footer","bankName","bankAccount","bankHolder","logo"];
+const CSV_COLUMNS=["type","id","name","phone","address","price","stock","supplier","hpp","qty","cost","purchaseDate","purchaseNote","createdAt","updatedAt","number","date","dueDate","status","customerName","customerPhone","customerAddress","note","subtotal","discount","total","invoiceItems","storeName","footer","bankName","bankAccount","bankHolder","logo","waTemplateUnpaid","waTemplatePaid"];
 
 function csvEscape(v){
   const s=typeof v==="string"?v:String(v??"");
@@ -973,7 +1099,7 @@ function exportCsv(){
   (db.purchases||[]).forEach(x=>rows.push({type:"purchase",...x,purchaseDate:x.date,purchaseNote:x.note}));
   db.customers.forEach(x=>rows.push({type:"customer",...x}));
   db.invoices.forEach(x=>rows.push({type:"invoice",...x,invoiceItems:JSON.stringify(x.items||[])}));
-  rows.push({type:"profile",storeName:db.profile.name,phone:db.profile.phone,address:db.profile.address,footer:db.profile.footer,bankName:db.profile.bankName,bankAccount:db.profile.bankAccount,bankHolder:db.profile.bankHolder,logo:db.profile.logo});
+  rows.push({type:"profile",storeName:db.profile.name,phone:db.profile.phone,address:db.profile.address,footer:db.profile.footer,bankName:db.profile.bankName,bankAccount:db.profile.bankAccount,bankHolder:db.profile.bankHolder,logo:db.profile.logo,waTemplateUnpaid:db.profile.waTemplateUnpaid||"",waTemplatePaid:db.profile.waTemplatePaid||""});
   downloadBlob(new Blob(["\ufeff"+toCsv(rows)],{type:"text/csv;charset=utf-8"}),`NotaKilat-Export-${today()}.csv`);
   toast("CSV berhasil diunduh.");
 }
@@ -1007,7 +1133,7 @@ async function importCsv(file){
       else if(r.type==="customer") next.customers.push({id:r.id||uid("cus"),name:r.name||"",phone:r.phone||"",address:r.address||"",createdAt:r.createdAt||new Date().toISOString(),updatedAt:r.updatedAt||new Date().toISOString()});
       else if(r.type==="purchase") next.purchases.push({id:r.id||uid("pur"),productId:r.productId||"",productName:r.productName||"",supplier:r.supplier||"",qty:Number(r.qty||0),cost:Number(r.cost||0),date:r.purchaseDate||r.date||today(),note:r.purchaseNote||r.note||"",total:Number(r.total||0),createdAt:r.createdAt||new Date().toISOString()});
       else if(r.type==="invoice") {let items=[];try{items=JSON.parse(r.invoiceItems||"[]")}catch(e){} next.invoices.push({id:r.id||uid("inv"),number:r.number||"",date:r.date||today(),dueDate:r.dueDate||"",status:r.status||"LUNAS",customerName:r.customerName||"Umum",customerPhone:r.customerPhone||"",customerAddress:r.customerAddress||"",note:r.note||"",subtotal:Number(r.subtotal||0),discount:Number(r.discount||0),total:Number(r.total||0),items,createdAt:r.createdAt||new Date().toISOString(),updatedAt:r.updatedAt||new Date().toISOString()});}
-      else if(r.type==="profile") next.profile={name:r.storeName||"Toko Saya",phone:r.phone||"",address:r.address||"",footer:r.footer||"",bankName:r.bankName||"",bankAccount:r.bankAccount||"",bankHolder:r.bankHolder||"",logo:r.logo||"",theme:r.theme||"modern"};
+      else if(r.type==="profile") next.profile={name:r.storeName||"Toko Saya",phone:r.phone||"",address:r.address||"",footer:r.footer||"",bankName:r.bankName||"",bankAccount:r.bankAccount||"",bankHolder:r.bankHolder||"",logo:r.logo||"",theme:r.theme||"modern",waTemplateUnpaid:r.waTemplateUnpaid||"",waTemplatePaid:r.waTemplatePaid||""};
     });
     db=next;saveCache();refreshAll();
     toast("Import CSV berhasil. Data tersimpan di perangkat.");
@@ -1321,6 +1447,9 @@ function loadProfileForm(){
   document.getElementById("bankName").value=p.bankName||"";
   document.getElementById("bankAccount").value=p.bankAccount||"";
   document.getElementById("bankHolder").value=p.bankHolder||"";
+  const waU=document.getElementById("waTemplateUnpaid"); if(waU) waU.value=p.waTemplateUnpaid||WA_TEMPLATE_DEFAULT_UNPAID;
+  const waP=document.getElementById("waTemplatePaid"); if(waP) waP.value=p.waTemplatePaid||WA_TEMPLATE_DEFAULT_PAID;
+  renderWaPlaceholderChips(); updateWaTemplatePreview();
   const pin=document.getElementById("pinEnabled"); if(pin) pin.checked=p.pinEnabled!==false;
   const invoiceStyleSelect=document.getElementById("invoiceStyleDefault");
   if(invoiceStyleSelect) invoiceStyleSelect.value=currentInvoiceStyle;
@@ -1386,7 +1515,9 @@ async function saveProfile(){
     address:document.getElementById("storeAddress").value.trim(), footer:document.getElementById("storeFooter").value.trim(),
     bankName:document.getElementById("bankName").value.trim(), bankAccount:document.getElementById("bankAccount").value.trim(),
     bankHolder:document.getElementById("bankHolder").value.trim(), pinEnabled:!!document.getElementById("pinEnabled")?.checked, logo:db.profile.logo||"", theme:document.getElementById("storeTheme").value||"modern",
-    invoiceStyle:document.getElementById("invoiceStyleDefault")?.value || currentInvoiceStyle || "modern"
+    invoiceStyle:document.getElementById("invoiceStyleDefault")?.value || currentInvoiceStyle || "modern",
+    waTemplateUnpaid:(document.getElementById("waTemplateUnpaid")?.value||"").trim(),
+    waTemplatePaid:(document.getElementById("waTemplatePaid")?.value||"").trim()
   };
   applyLocalSaveProfile(data);
   applyTheme(data.theme || "modern");
